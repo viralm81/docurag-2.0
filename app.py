@@ -1,9 +1,6 @@
 import streamlit as st
-import pandas as pd
-import docx2txt
-import fitz  # PyMuPDF for PDFs
 from rag_agent import (
-    add_documents_to_index,
+    add_pdf_to_index,
     list_indexed_files,
     clear_doc_index,
     clear_memory_index,
@@ -14,74 +11,37 @@ from rag_agent import (
 
 st.set_page_config(page_title="DocuRAG", layout="wide")
 
-st.title("📄 DocuRAG – Document Q&A with Memory")
+st.title("📄 DocuRAG - PDF & Memory QA Agent")
 
-# Sidebar
-st.sidebar.header("Controls")
+# Upload PDF
+uploaded_file = st.file_uploader("Upload a PDF", type=["pdf"])
+if uploaded_file:
+    with st.spinner("Indexing PDF..."):
+        add_pdf_to_index(uploaded_file)
+    st.success(f"Added {uploaded_file.name} to index.")
 
-if st.sidebar.button("🧹 Clear Document Index"):
-    msg = clear_doc_index()
-    st.sidebar.success(msg)
-
-if st.sidebar.button("🧹 Clear Memory Index"):
-    msg = clear_memory_index()
-    st.sidebar.success(msg)
-
-if st.sidebar.button("🕒 Current Time"):
-    st.sidebar.info(tool_current_time())
-
-# File uploader
-uploaded_files = st.file_uploader(
-    "Upload documents", 
-    type=["txt", "pdf", "docx", "csv"], 
-    accept_multiple_files=True
-)
-
-def extract_text_from_file(file):
-    """Extract text from uploaded file based on type"""
-    if file.type == "text/plain":
-        return file.read().decode("utf-8")
-
-    elif file.type == "application/pdf":
-        text = ""
-        pdf = fitz.open(stream=file.read(), filetype="pdf")
-        for page in pdf:
-            text += page.get_text()
-        return text
-
-    elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        return docx2txt.process(file)
-
-    elif file.type == "text/csv":
-        df = pd.read_csv(file)
-        return df.to_string()
-
-    return None
-
-if uploaded_files:
-    docs = []
-    for file in uploaded_files:
-        extracted_text = extract_text_from_file(file)
-        if extracted_text:
-            docs.append(extracted_text)
-
-    if docs:
-        msg = add_documents_to_index(docs)
-        st.success(msg)
-
-# Show indexed docs
-if st.checkbox("Show Indexed Files"):
-    ids = list_indexed_files()
-    if ids:
-        st.write("Indexed document IDs:", ids)
+# Show indexed files
+if st.button("📂 Show Indexed Files"):
+    files = list_indexed_files()
+    if files:
+        st.write("Indexed files:", files)
     else:
-        st.info("No documents indexed yet.")
+        st.write("No files indexed yet.")
 
-# Query box
-st.subheader("Ask a Question")
-query = st.text_input("Type your query:")
+# Clear indexes
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("❌ Clear Docs Index"):
+        clear_doc_index()
+        st.success("Document index cleared.")
 
+with col2:
+    if st.button("🧹 Clear Memory"):
+        clear_memory_index()
+        st.success("Memory cleared.")
+
+# Query
+query = st.text_input("🔍 Ask a question:")
 if query:
-    answer = answer_with_memory_and_docs(query)
-    st.write("### Answer")
-    st.write(answer)
+    with st.spinner("Searching and answering..."):
+        answer =
