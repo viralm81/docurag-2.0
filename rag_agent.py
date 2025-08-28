@@ -1,110 +1,46 @@
 import os
-from datetime import datetime
-from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
-from langchain_chromadb import Chroma
-from langchain.schema import Document
+from langchain_chroma import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.vectorstores import Chroma as ChromaStore
+from langchain.embeddings import SentenceTransformerEmbeddings
+from langchain.schema import Document
 
-# =====================
-# Setup
-# =====================
-load_dotenv()
+# Path for local persistent storage
+CHROMA_DB_DIR = "chroma_db"
 
-# Embedding model
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+# Embeddings
+embedding_model = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
-# Persistent storage for Chroma
-CHROMA_DIR = "./chroma_store"
-os.makedirs(CHROMA_DIR, exist_ok=True)
-
-vector_store = Chroma(
-    persist_directory=CHROMA_DIR,
-    embedding_function=embedding_model.encode
+# Create vectorstore
+vectorstore = ChromaStore(
+    persist_directory=CHROMA_DB_DIR,
+    embedding_function=embedding_model
 )
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-
-# =====================
-# Document Handling
-# =====================
-
-def add_pdf_to_index(uploaded_file):
-    """Load PDF, split, embed, and store in Chroma"""
-    pdf_path = f"./temp_{uploaded_file.name}"
-    with open(pdf_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-
+def add_pdf_to_index(pdf_path: str):
     loader = PyPDFLoader(pdf_path)
-    pages = loader.load_and_split()
-    docs = text_splitter.split_documents(pages)
+    documents = loader.load()
 
-    # Convert to langchain Document objects
-    lc_docs = [Document(page_content=d.page_content, metadata={"source": uploaded_file.name}) for d in docs]
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_documents(documents)
 
-    vector_store.add_documents(lc_docs)
-    vector_store.persist()
-
-    os.remove(pdf_path)
-
-
-def list_indexed_files():
-    """Return list of all sources (filenames) in Chroma"""
-    results = vector_store.get()
-    if "metadatas" in results:
-        return list({meta["source"] for meta in results["metadatas"] if "source" in meta})
-    return []
-
+    vectorstore.add_documents(chunks)
+    vectorstore.persist()
 
 def clear_doc_index():
-    """Clear ChromaDB index"""
-    global vector_store
-    if os.path.exists(CHROMA_DIR):
-        for f in os.listdir(CHROMA_DIR):
-            os.remove(os.path.join(CHROMA_DIR, f))
-    vector_store = Chroma(
-        persist_directory=CHROMA_DIR,
-        embedding_function=embedding_model.encode
-    )
+    if os.path.exists(CHROMA_DB_DIR):
+        import shutil
+        shutil.rmtree(CHROMA_DB_DIR)
+    os.makedirs(CHROMA_DB_DIR, exist_ok=True)
 
+def list_indexed_files():
+    # just show stored collection stats
+    return vectorstore._collection.count()
 
-def clear_memory_index():
-    """Alias to clear doc index"""
-    clear_doc_index()
-
-
-# =====================
-# Querying
-# =====================
-
-def search_docs(query, top_k=3):
-    """Search top_k documents in Chroma"""
-    results = vector_store.similarity_search(query, k=top_k)
-    return results
-
-
-def answer_with_memory_and_docs(query):
-    """Simple retrieval-based answer"""
-    docs = search_docs(query, top_k=3)
+def answer_with_docs(query: str, k: int = 3):
+    docs = vectorstore.similarity_search(query, k=k)
     if not docs:
         return "No relevant documents found."
-
-    response = f"Query: {query}\n\nRelevant Info:\n"
-    for i, doc in enumerate(docs, 1):
-        response += f"{i}. {doc.page_content}\n"
-    return response
-
-
-# =====================
-# Tools
-# =====================
-
-def tool_current_time():
-    """Return current system time"""
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def tool_combine_docs(docs):
-    """Combine docs into a single string"""
-    return "\n---\n".join(docs)
+    answer = "\n\n".join([f"Source: {d.metadata}\n{d.page_content}" for d in docs])
+    return answer
