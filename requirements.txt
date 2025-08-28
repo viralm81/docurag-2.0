@@ -4,7 +4,7 @@ sentence-transformers==2.2.2
 pypdf==4.2.0
 docx2txt==0.8
 requests==2.31.0
-duckduckgo-search==6.2.11
+duckduckgo-search==6.2.10
 python-multipart==0.0.6
 tqdm==4.66.1
 openai==1.9.0
