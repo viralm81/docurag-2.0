@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: docurag-2.0
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    repo: <your-repo-url> # set after pushing to Github
