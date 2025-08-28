@@ -1,8 +1,8 @@
 streamlit
-chromadb
+python-dotenv
 sentence-transformers
-pandas
-numpy
-pymupdf       # for PDF reading
-docx2txt      # for Word docs
-python-docx   # optional, safer docx parsing
+langchain
+langchain-community
+langchain-chromadb
+chromadb
+pypdf
