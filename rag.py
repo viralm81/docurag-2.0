@@ -3,7 +3,8 @@ import shutil
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import Chroma
-from langchain.embeddings import SentenceTransformerEmbeddings
+from langchain_community.embeddings import SentenceTransformerEmbeddings
+
 
 # Path for local persistent storage
 CHROMA_DB_DIR = "chroma_db"
