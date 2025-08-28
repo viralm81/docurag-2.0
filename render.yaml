@@ -1,8 +1,19 @@
 services:
   - type: web
-    name: docurag-2.0
-    env: docker
-    plan: free
-    dockerfilePath: ./Dockerfile
-    autoDeploy: true
-    repo: <your-repo-url> # set after pushing to Github
+    name: rag-streamlit-app
+    env: python
+    plan: starter  # Change to your desired plan
+    buildCommand: |
+      pip install --upgrade pip
+      pip install numpy==1.26.0
+      pip install faiss-cpu==1.7.4
+      pip install -r requirements.txt --no-deps
+    startCommand: streamlit run app.py
+    pythonVersion: 3.11
+    envVars:
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
+      - key: STREAMLIT_SERVER_PORT
+        value: "10000"   # Render assigns port via $PORT, you can map it in startCommand if needed
+      - key: STREAMLIT_SERVER_ENABLE_CORS
+        value: "false"
