@@ -1,19 +1,5 @@
-# Core app
-streamlit==1.29.0
-
-# DuckDuckGo search
-duckduckgo-search==6.2.10
-
-# Data processing
-pandas==2.1.0
-requests==2.32.0
-python-dotenv==1.0.1
-
-# TTS if used
-gtts==2.3.2
-
-# ML / Embeddings
-faiss-cpu==1.7.4
-torch==2.3.1
-sentence-transformers==2.2.2
-huggingface-hub==0.16.5
+streamlit
+transformers
+torch
+chromadb==0.4.24
+sentence-transformers
