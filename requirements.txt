@@ -1,5 +1,8 @@
 streamlit
-transformers
-torch
-chromadb==0.4.24
+chromadb
 sentence-transformers
+pandas
+numpy
+pymupdf       # for PDF reading
+docx2txt      # for Word docs
+python-docx   # optional, safer docx parsing
