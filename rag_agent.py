@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import faiss
+print("FAISS version:", faiss.__version__)
 import requests
 import time
 from typing import List, Dict, Tuple, Optional
