@@ -1,88 +1,87 @@
-import os
-import tempfile
 import streamlit as st
-from rag_agent import add_documents_to_index, list_indexed_files, clear_doc_index, clear_memory_index, answer_with_memory_and_docs, tool_current_time, tool_combine_docs
-from tools import MCPAdapter, ddg_web_search
-import json
+import pandas as pd
+import docx2txt
+import fitz  # PyMuPDF for PDFs
+from rag_agent import (
+    add_documents_to_index,
+    list_indexed_files,
+    clear_doc_index,
+    clear_memory_index,
+    answer_with_memory_and_docs,
+    tool_current_time,
+    tool_combine_docs,
+)
 
-st.set_page_config(page_title="DocuRAG 2.0 (Groq)", layout="wide")
-st.title("📄 DocuRAG 2.0 — Groq-backed, FAISS persistent")
+st.set_page_config(page_title="DocuRAG", layout="wide")
 
-# Sidebar controls
-st.sidebar.header("Index Controls")
-if st.sidebar.button("Clear Document Index"):
-    clear_doc_index()
-    st.sidebar.success("Document index cleared.")
+st.title("📄 DocuRAG – Document Q&A with Memory")
 
-if st.sidebar.button("Clear Long-term Memory"):
-    clear_memory_index()
-    st.sidebar.success("Long-term memory cleared.")
+# Sidebar
+st.sidebar.header("Controls")
 
-files_listed = list_indexed_files()
-st.sidebar.subheader("Indexed files")
-if files_listed:
-    for f in files_listed:
-        st.sidebar.write("- " + f)
-else:
-    st.sidebar.info("No files indexed yet")
+if st.sidebar.button("🧹 Clear Document Index"):
+    msg = clear_doc_index()
+    st.sidebar.success(msg)
 
-# Upload area
-st.subheader("Upload documents (PDF / DOCX / TXT)")
-uploaded = st.file_uploader("Upload", accept_multiple_files=True, type=['pdf','docx','txt'])
-if uploaded:
-    tmpdir = tempfile.mkdtemp()
-    paths = []
-    for f in uploaded:
-        p = os.path.join(tmpdir, f.name)
-        with open(p, "wb") as out:
-            out.write(f.read())
-        paths.append(p)
-    chunks, files_count = add_documents_to_index(paths)
-    st.success(f"Indexed {files_count} file(s) — {chunks} chunks added.")
+if st.sidebar.button("🧹 Clear Memory Index"):
+    msg = clear_memory_index()
+    st.sidebar.success(msg)
 
-st.divider()
+if st.sidebar.button("🕒 Current Time"):
+    st.sidebar.info(tool_current_time())
 
-# Chat / QA
-st.subheader("Chat with your documents")
-if "history" not in st.session_state:
-    st.session_state.history = []
+# File uploader
+uploaded_files = st.file_uploader(
+    "Upload documents", 
+    type=["txt", "pdf", "docx", "csv"], 
+    accept_multiple_files=True
+)
 
-query = st.chat_input("Ask a question about your documents (you can also ask combine/compare)...")
-if query:
-    st.session_state.history.append({"role":"user","text":query})
-    with st.spinner("Thinking..."):
-        out = answer_with_memory_and_docs(query)
-    st.session_state.history.append({"role":"assistant","text":out["answer"]})
+def extract_text_from_file(file):
+    """Extract text from uploaded file based on type"""
+    if file.type == "text/plain":
+        return file.read().decode("utf-8")
 
-for m in st.session_state.history:
-    if m["role"] == "user":
-        st.chat_message("user").write(m["text"])
+    elif file.type == "application/pdf":
+        text = ""
+        pdf = fitz.open(stream=file.read(), filetype="pdf")
+        for page in pdf:
+            text += page.get_text()
+        return text
+
+    elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        return docx2txt.process(file)
+
+    elif file.type == "text/csv":
+        df = pd.read_csv(file)
+        return df.to_string()
+
+    return None
+
+if uploaded_files:
+    docs = []
+    for file in uploaded_files:
+        extracted_text = extract_text_from_file(file)
+        if extracted_text:
+            docs.append(extracted_text)
+
+    if docs:
+        msg = add_documents_to_index(docs)
+        st.success(msg)
+
+# Show indexed docs
+if st.checkbox("Show Indexed Files"):
+    ids = list_indexed_files()
+    if ids:
+        st.write("Indexed document IDs:", ids)
     else:
-        st.chat_message("assistant").write(m["text"])
+        st.info("No documents indexed yet.")
 
-st.divider()
+# Query box
+st.subheader("Ask a Question")
+query = st.text_input("Type your query:")
 
-# Utilities: combine docs
-st.subheader("Utilities")
-if st.button("Combine top docs (quick)"):
-    with st.spinner("Combining..."):
-        res = tool_combine_docs("summarize important content", k=5)
-    st.markdown("**Combined Summary**")
-    st.write(res)
-
-with st.expander("Tools (DuckDuckGo / MCP)"):
-    q2 = st.text_input("DuckDuckGo search query")
-    if st.button("Search web"):
-        res = ddg_web_search(q2)
-        st.write(res)
-    st.markdown("---")
-    st.write("MCP Adapter (placeholder)")
-    mcp = MCPAdapter(enabled=(os.getenv("MCP_ENABLED","").lower() in ("1","true","yes")))
-    tool = st.text_input("Tool name")
-    args = st.text_area("JSON args (optional)", value="{}")
-    if st.button("Call MCP"):
-        try:
-            parsed = json.loads(args)
-        except Exception as e:
-            parsed = {"raw": args}
-        st.write(mcp.call_tool(tool, **parsed))
+if query:
+    answer = answer_with_memory_and_docs(query)
+    st.write("### Answer")
+    st.write(answer)
