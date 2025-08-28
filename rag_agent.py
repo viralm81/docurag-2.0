@@ -1,113 +1,103 @@
 import os
-import numpy as np
-import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
-
-# Try both faiss and faiss_cpu (Render usually uses faiss-cpu wheel)
-try:
-    import faiss
-except ModuleNotFoundError:
-    import faiss_cpu as faiss
-
 from sentence_transformers import SentenceTransformer
+from langchain_chromadb import Chroma
+from langchain.schema import Document
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader
 
 # =====================
 # Setup
 # =====================
 load_dotenv()
 
-# Sentence Transformer embedding model
+# Embedding model
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# FAISS index (cosine similarity)
-dimension = embedding_model.get_sentence_embedding_dimension()
-index = faiss.IndexFlatL2(dimension)
+# Persistent storage for Chroma
+CHROMA_DIR = "./chroma_store"
+os.makedirs(CHROMA_DIR, exist_ok=True)
 
-# In-memory storage for documents and vectors
-doc_store = []        # List of texts
-file_store = []       # List of filenames
-id_to_text = {}       # Mapping ID → text
+vector_store = Chroma(
+    persist_directory=CHROMA_DIR,
+    embedding_function=embedding_model.encode
+)
 
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 
 # =====================
-# Utility Functions
+# Document Handling
 # =====================
 
-def embed_text(texts):
-    """Convert text list to embeddings using SentenceTransformer"""
-    embeddings = embedding_model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
-    return embeddings.astype("float32")
+def add_pdf_to_index(uploaded_file):
+    """Load PDF, split, embed, and store in Chroma"""
+    pdf_path = f"./temp_{uploaded_file.name}"
+    with open(pdf_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
 
+    loader = PyPDFLoader(pdf_path)
+    pages = loader.load_and_split()
+    docs = text_splitter.split_documents(pages)
 
-def add_documents_to_index(file_name, docs):
-    """
-    Add list of documents to FAISS index and store mapping.
-    file_name: source file
-    docs: list of text chunks
-    """
-    global doc_store, file_store, id_to_text
+    # Convert to langchain Document objects
+    lc_docs = [Document(page_content=d.page_content, metadata={"source": uploaded_file.name}) for d in docs]
 
-    embeddings = embed_text(docs)
-    index.add(embeddings)
+    vector_store.add_documents(lc_docs)
+    vector_store.persist()
 
-    start_id = len(doc_store)
-    for i, text in enumerate(docs):
-        idx = start_id + i
-        id_to_text[idx] = text
-        doc_store.append(text)
-        file_store.append(file_name)
+    os.remove(pdf_path)
 
 
 def list_indexed_files():
-    """Return list of indexed file names"""
-    return list(set(file_store))
+    """Return list of all sources (filenames) in Chroma"""
+    results = vector_store.get()
+    if "metadatas" in results:
+        return list({meta["source"] for meta in results["metadatas"] if "source" in meta})
+    return []
 
 
 def clear_doc_index():
-    """Clear document index but keep memory"""
-    global doc_store, file_store, id_to_text, index
-    dimension = embedding_model.get_sentence_embedding_dimension()
-    index = faiss.IndexFlatL2(dimension)
-    doc_store.clear()
-    file_store.clear()
-    id_to_text.clear()
+    """Clear ChromaDB index"""
+    global vector_store
+    if os.path.exists(CHROMA_DIR):
+        for f in os.listdir(CHROMA_DIR):
+            os.remove(os.path.join(CHROMA_DIR, f))
+    vector_store = Chroma(
+        persist_directory=CHROMA_DIR,
+        embedding_function=embedding_model.encode
+    )
 
 
 def clear_memory_index():
-    """Alias for full reset (same as clear_doc_index here)"""
+    """Alias to clear doc index"""
     clear_doc_index()
 
 
+# =====================
+# Querying
+# =====================
+
 def search_docs(query, top_k=3):
-    """Return top_k most similar docs for a query"""
-    if index.ntotal == 0:
-        return []
-
-    q_emb = embed_text([query])
-    distances, indices = index.search(q_emb, top_k)
-
-    results = []
-    for idx in indices[0]:
-        if idx in id_to_text:
-            results.append(id_to_text[idx])
+    """Search top_k documents in Chroma"""
+    results = vector_store.similarity_search(query, k=top_k)
     return results
 
 
 def answer_with_memory_and_docs(query):
-    """Return simple combined answer from docs + memory"""
-    top_docs = search_docs(query, top_k=3)
-    if not top_docs:
+    """Simple retrieval-based answer"""
+    docs = search_docs(query, top_k=3)
+    if not docs:
         return "No relevant documents found."
 
     response = f"Query: {query}\n\nRelevant Info:\n"
-    for i, doc in enumerate(top_docs, 1):
-        response += f"{i}. {doc}\n"
+    for i, doc in enumerate(docs, 1):
+        response += f"{i}. {doc.page_content}\n"
     return response
 
 
 # =====================
-# Tools (example)
+# Tools
 # =====================
 
 def tool_current_time():
@@ -116,5 +106,5 @@ def tool_current_time():
 
 
 def tool_combine_docs(docs):
-    """Combine list of docs into single text"""
+    """Combine docs into a single string"""
     return "\n---\n".join(docs)
