@@ -2,20 +2,22 @@ services:
   - type: web
     name: rag-streamlit-app
     env: python
-    plan: starter  # Change to your desired plan
+    plan: starter  # Change if needed
+    pythonVersion: 3.11
     buildCommand: |
       pip install --upgrade pip
+      # Install core dependencies in correct order to avoid conflicts
       pip install numpy==1.26.0
       pip install faiss-cpu==1.7.4
-      pip install huggingface-hub==0.16.4
+      pip install torch==2.3.1
+      pip install huggingface-hub==0.16.5
       pip install sentence-transformers==2.2.2
+      # Install the rest of your requirements
       pip install -r requirements.txt --no-deps
-    startCommand: streamlit run app.py
-    pythonVersion: 3.11
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0
     envVars:
       - key: STREAMLIT_SERVER_HEADLESS
         value: "true"
-      - key: STREAMLIT_SERVER_PORT
-        value: "10000"   # Render assigns port via $PORT, you can map it in startCommand if needed
       - key: STREAMLIT_SERVER_ENABLE_CORS
         value: "false"
+
