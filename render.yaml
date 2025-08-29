@@ -2,11 +2,11 @@ services:
   - type: web
     name: docurag
     env: python
-    buildCommand: pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.txt
+    buildCommand: pip install --no-cache-dir -r requirements.txt
     startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
     plan: free
     envVars:
       - key: PYTHON_VERSION
         value: 3.10
       - key: HF_API_KEY
-        value: "<your token here>"
+        value: "<your HuggingFace token here>"
