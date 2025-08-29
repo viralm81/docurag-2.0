@@ -5,4 +5,4 @@ langchain-community==0.2.3
 langchain-huggingface==0.0.3
 sentence-transformers==2.2.2
 pypdf==3.14.0
-duckduckgo-search==2.0.0  # optional
+duckduckgo-search==8.1.1
