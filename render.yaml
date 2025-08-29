@@ -2,12 +2,11 @@ services:
   - type: web
     name: docurag
     env: python
-    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
+    plan: free
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
       - key: HF_API_KEY
-        value: "<your HuggingFace token>"
-      - key: PYTHONUNBUFFERED
-        value: "1"
-
+        value: "<your token here>"
