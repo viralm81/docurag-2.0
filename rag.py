@@ -1,7 +1,8 @@
 import os
 import textwrap
 from langchain.chains import RetrievalQA
-from langchain_huggingface import HuggingFaceHub
+from langchain.llms import HuggingFaceHub
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
